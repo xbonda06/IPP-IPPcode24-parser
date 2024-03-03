@@ -2,6 +2,13 @@ import sys
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
+instructions_list = ["MOVE", "CREATEFRAME", "PUSHFRAME", "POPFRAME", "DEFVAR", "CALL", "RETURN", "PUSHS", "POPS",
+                        "ADD", "SUB", "MUL", "IDIV", "LT", "GT", "EQ", "AND", "OR", "NOT", "INT2CHAR", "STRI2INT",
+                        "READ", "WRITE", "CONCAT", "STRLEN", "GETCHAR", "SETCHAR", "TYPE", "LABEL", "JUMP", "JUMPIFEQ",
+                        "JUMPIFNEQ", "EXIT", "DPRINT", "BREAK"]
+
+arguments_list = ["int", "bool", "string", "nil", "label", "type", "var"]
+
 
 class ArgumentCheck:
     def __init__(self, expected_args=None):
@@ -17,14 +24,16 @@ class ArgumentCheck:
             print("It creates an XML file from it, which it prints to stdout.\n")
             print("Optional parameters:")
             print("--help - prints this help message\n")
-            print("Usage:")
             sys.exit(0)
 
 
 class Instruction:
-    def __init__(self, order, name, args):
+    def __init__(self, order, opcode, args):
+        if opcode not in instructions_list:
+            print(f"Error: unknown instruction {opcode}", file=sys.stderr)
+            sys.exit(22)
         self.order = order
-        self.opcode = name
+        self.opcode = opcode
         self.args = args
 
 
@@ -39,11 +48,11 @@ class XMLGenerator:
         self.root = ET.Element("program", language="IPPcode24")
 
     def create_xml_instruction(self, instruction):
-        xml_intruction = ET.Element("instruction", order=str(instruction.order), opcode=instruction.opcode)
+        xml_instruction = ET.Element("instruction", order=str(instruction.order), opcode=instruction.opcode)
         for i, arg in enumerate(instruction.args, start=1):
-            arg_elem = ET.SubElement(xml_intruction, f"arg{i}", type=arg.type)
+            arg_elem = ET.SubElement(xml_instruction, f"arg{i}", type=arg.type)
             arg_elem.text = arg.value
-        self.root.append(xml_intruction)
+        self.root.append(xml_instruction)
 
     def get_xml(self):
         xml_str = ET.tostring(self.root, encoding="utf-8", method="xml", xml_declaration=True)
@@ -56,7 +65,8 @@ def get_instruction_from_line(line, line_number):
     if len(line_without_comment) > 1:
         line = line_without_comment[0]
     parts_of_line = line.strip().split(maxsplit=1)
-    instruction_name = parts_of_line[0].upper()
+    opcode = parts_of_line[0].upper()
+
     if len(parts_of_line) > 1:
         instruction_args = parts_of_line[1]
     else:
@@ -69,7 +79,7 @@ def get_instruction_from_line(line, line_number):
             arg_type = "label"
             arg_value = arg
         args.append(Argument(arg_type, arg_value))
-    return Instruction(line_number, instruction_name, args)
+    return Instruction(line_number, opcode, args)
 
 
 def main():
