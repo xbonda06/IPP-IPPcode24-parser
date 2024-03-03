@@ -9,7 +9,7 @@ class ArgumentCheck:
 
     def check_args(self):
         if len(sys.argv) > 1 and sys.argv[1] not in self.expected_args:
-            print("Invalid number of arguments")
+            print("Invalid number of arguments", file=sys.stderr)
             sys.exit(10)
         elif len(sys.argv) == 2 and sys.argv[1] in self.expected_args:
             print("HINT:")
@@ -79,9 +79,17 @@ def main():
     xml_gen = XMLGenerator()
 
     line_number = 0
+    header_checked = False
     for line in sys.stdin:
-        if line.strip().startswith("#") or line.strip() == "":
+        if line.strip().startswith(".IPPcode24"):
+            header_checked = True
             continue
+        elif line.strip().startswith("#") or line.strip() == "":
+            continue
+        if not header_checked:
+            print("Error: header not found", file=sys.stderr)
+            sys.exit(21)
+
         line_number += 1
         instruction = get_instruction_from_line(line, line_number)
         if instruction is not None:
