@@ -51,11 +51,13 @@ class Instruction:
 
 class Argument:
     def __init__(self, arg_type, arg_value):
-        self.type = arg_type
+        self.type = arg_type if arg_type in arguments_type_list else "var"
         arg_value.replace("<", "&lt;")
         arg_value.replace(">", "&gt;")
         arg_value.replace("&", "&amp;")
         self.value = arg_value
+        if arg_type in argument_frames:
+            self.value = f"{arg_type}@{arg_value}"
 
 
 class XMLGenerator:
@@ -82,8 +84,8 @@ def parse_arg(instruction_args):
         if '@' in arg:
             arg_type, arg_value = arg.split('@', 1)
         elif arg in arguments_type_list:
-            arg_type = arg
-            arg_value = ""
+            arg_type = "type"
+            arg_value = arg
         else:
             arg_type = "label"
             arg_value = arg
@@ -121,18 +123,17 @@ def parse_instructions(instruction):
             print(f"Error: {instruction.opcode} takes one symbol", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_one_var:
-        if len(instruction.args) != 1 or instruction.args[0].type not in argument_frames:
+        if len(instruction.args) != 1 or instruction.args[0].type not in arguments_type_list:
             print(f"Error: {instruction.opcode} takes one variable", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_two_vs:
-        if len(instruction.args) != 2 or instruction.args[0].type not in argument_frames or \
-                instruction.args[1].type not in arguments_type_list and \
-                instruction.args[1].type not in argument_frames:
+        if len(instruction.args) != 2 or instruction.args[0].type not in arguments_type_list or \
+                instruction.args[1].type not in arguments_type_list:
             print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_two_vt:
-        if len(instruction.args) != 2 or instruction.args[0].type not in argument_frames or \
-                instruction.args[1].type not in ["int", "string", "bool"] and instruction.args[1].value != "":
+        if len(instruction.args) != 2 or instruction.args[0].type not in arguments_type_list or \
+                instruction.args[1].value not in ["int", "string", "bool"] and instruction.args[1].value != "":
             print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_three_vss:
