@@ -57,6 +57,7 @@ class XMLGenerator:
     def get_xml(self):
         xml_str = ET.tostring(self.root, encoding="utf-8", method="xml", xml_declaration=True)
         xml_str = minidom.parseString(xml_str).toprettyxml(indent="    ").encode("utf-8")
+        xml_str = xml_str.replace(b"<?xml version=\"1.0\" ?>\n", b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         return xml_str
 
 
@@ -91,7 +92,10 @@ def main():
     line_number = 0
     header_checked = False
     for line in sys.stdin:
-        if line.strip().startswith(".IPPcode24"):
+        if line.strip().startswith(".IPPcode24") and header_checked:
+            print("Error: multiple headers found", file=sys.stderr)
+            sys.exit(23)
+        elif line.strip().startswith(".IPPcode24") and not header_checked:
             header_checked = True
             continue
         elif line.strip().startswith("#") or line.strip() == "":
