@@ -23,10 +23,6 @@ arguments_type_list = ["int", "bool", "string", "nil", "label", "type", "var"]
 argument_frames = ["GF", "LF", "TF"]
 
 
-def contains_uppercase(s):
-    return any(c.isupper() for c in s)
-
-
 class InputChecker:
     def __init__(self, allowed_args=None):
         self.allowed_args = allowed_args or []
@@ -67,18 +63,20 @@ class Instruction:
 
 class Argument:
     def __init__(self, arg_type, arg_value):
-        self.check_arg_type(arg_type, arg_value)
-        self.type = arg_type if arg_type in arguments_type_list else "var"
-        self.check_arg_value(self, self.type, arg_value)
+        self.type = ""
+        self.value = arg_value
+        self.process_type(arg_type, arg_value)
+        self.process_value(self.type, arg_value)
         if arg_type in argument_frames:
             self.value = f"{arg_type}@{arg_value}"
         else:
             self.value = arg_value
 
-    @staticmethod
-    def check_arg_type(arg_type, arg_value):
-        if contains_uppercase(arg_type) and arg_type not in argument_frames:
+    def process_type(self, arg_type, arg_value):
+        if any(c.isupper() for c in arg_type) and arg_type not in argument_frames:
             InputChecker.error_exit("Error: invalid argument type", 23)
+        else:
+            self.type = arg_type if arg_type in arguments_type_list else "var"
         if arg_type == "bool" and arg_value not in ["true", "false"]:
             InputChecker.error_exit("Error: invalid value of argument", 23)
         if arg_type == "nil" and arg_value != "nil":
@@ -90,8 +88,7 @@ class Argument:
         if re.search(pattern, string):
             InputChecker.error_exit("Error: invalid value of argument", 23)
 
-    @staticmethod
-    def check_arg_value(self, arg_type, arg_value):
+    def process_value(self, arg_type, arg_value):
         special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
         if arg_type == "int" and len(arg_value) == 0:
             InputChecker.error_exit("Error: invalid value of argument", 23)
@@ -123,7 +120,8 @@ class InstructionValidator:
             if len(self.instruction.args) != 1 or self.instruction.args[0].type != "label":
                 InputChecker.error_exit(f"Error: {self.instruction.opcode} takes one label", 23)
         elif self.instruction.opcode in instructions_w_one_symb:
-            if len(self.instruction.args) != 1 or self.instruction.args[0].type not in ["var", "string", "int", "bool", "nil"]:
+            if len(self.instruction.args) != 1 or self.instruction.args[0].type not in ["var", "string", "int", "bool",
+                                                                                        "nil"]:
                 InputChecker.error_exit(f"Error: {self.instruction.opcode} takes one symbol", 23)
         elif self.instruction.opcode in instructions_w_one_var:
             if len(self.instruction.args) != 1 or self.instruction.args[0].type != "var":
@@ -157,13 +155,15 @@ class InstructionValidator:
                 allowed_types = ["bool", "int", "string", "var"]
                 if self.instruction.opcode in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                     allowed_types.append("nil")
-                if self.instruction.args[1].type not in allowed_types or self.instruction.args[2].type not in allowed_types:
+                if self.instruction.args[1].type not in allowed_types or self.instruction.args[
+                    2].type not in allowed_types:
                     InputChecker.error_exit(f"Error: invalid type of argument", 23)
                 if self.instruction.args[1].type != "var" and self.instruction.args[2].type != "var" and \
                         self.instruction.args[1].type != self.instruction.args[2].type:
                     InputChecker.error_exit(f"Error: invalid type of argument", 23)
             case "AND", "OR":
-                if self.instruction.args[1].type not in ["bool", "var"] or self.instruction.args[2].type not in ["bool", "var"]:
+                if self.instruction.args[1].type not in ["bool", "var"] or self.instruction.args[2].type not in ["bool",
+                                                                                                                 "var"]:
                     InputChecker.error_exit(f"Error: invalid type of argument", 23)
             case "NOT":
                 if self.instruction.args[1].type not in ["bool", "var"] or self.instruction.args[0].type != "var":
