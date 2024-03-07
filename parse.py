@@ -22,6 +22,10 @@ arguments_type_list = ["int", "bool", "string", "nil", "label", "type", "var"]
 argument_frames = ["GF", "LF", "TF"]
 
 
+def contains_uppercase(s):
+    return any(c.isupper() for c in s)
+
+
 class ArgumentCheck:
     def __init__(self, expected_args=None):
         self.expected_args = expected_args or []
@@ -49,15 +53,49 @@ class Instruction:
         self.args = args
 
 
+def check_arg_type(arg_type, arg_value):
+    if contains_uppercase(arg_type) and arg_type not in argument_frames:
+        print("Error: invalid argument type", file=sys.stderr)
+        sys.exit(23)
+    if arg_type == "bool" and arg_value not in ["true", "false"]:
+        print("Error: invalid value of argument", file=sys.stderr)
+        sys.exit(23)
+    if arg_type == "nil" and arg_value != "nil":
+        print("Error: invalid value of argument", file=sys.stderr)
+        sys.exit(23)
+
+
+def check_arg_value(arg_type, arg_value):
+    special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
+    if arg_type == "int" and len(arg_value) == 0:
+        print("Error: invalid value of argument", file=sys.stderr)
+        sys.exit(23)
+    if arg_type == "int" and \
+            (not arg_value.isdigit() and not arg_value[0] in ["+", "-"] and not arg_value[1:].isdigit()):
+        print("Error: invalid value of argument", file=sys.stderr)
+        sys.exit(23)
+    if arg_type in ["label", "var"]:
+        if not arg_value[0].isalpha() and arg_value[0] not in special_chars:
+            print("Error: invalid value of argument", file=sys.stderr)
+            sys.exit(23)
+        for char in arg_value:
+            if not char.isalnum() and char not in special_chars:
+                print("Error: invalid value of argument", file=sys.stderr)
+                sys.exit(23)
+
+
 class Argument:
     def __init__(self, arg_type, arg_value):
+        check_arg_type(arg_type, arg_value)
         self.type = arg_type if arg_type in arguments_type_list else "var"
+        check_arg_value(self.type, arg_value)
         arg_value.replace("<", "&lt;")
         arg_value.replace(">", "&gt;")
         arg_value.replace("&", "&amp;")
-        self.value = arg_value
         if arg_type in argument_frames:
             self.value = f"{arg_type}@{arg_value}"
+        else:
+            self.value = arg_value
 
 
 class XMLGenerator:
@@ -66,9 +104,12 @@ class XMLGenerator:
 
     def create_xml_instruction(self, instruction):
         xml_instruction = ET.Element("instruction", order=str(instruction.order), opcode=instruction.opcode)
-        for i, arg in enumerate(instruction.args, start=1):
-            arg_elem = ET.SubElement(xml_instruction, f"arg{i}", type=arg.type)
-            arg_elem.text = arg.value
+        if not instruction.args:
+            xml_instruction.text = '\n    '
+        else:
+            for i, arg in enumerate(instruction.args, start=1):
+                arg_elem = ET.SubElement(xml_instruction, f"arg{i}", type=arg.type)
+                arg_elem.text = arg.value
         self.root.append(xml_instruction)
 
     def get_xml(self):
@@ -78,17 +119,23 @@ class XMLGenerator:
         return xml_str
 
 
-def parse_arg(instruction_args):
+def parse_arg(opcode, instruction_args):
     args = []
     for arg in instruction_args.split():
         if '@' in arg:
+            if arg.count("@") > 1:
+                print("Error: invalid argument", file=sys.stderr)
+                sys.exit(23)
             arg_type, arg_value = arg.split('@', 1)
-        elif arg in arguments_type_list:
+        elif arg in arguments_type_list and opcode in instructions_w_two_vt:
             arg_type = "type"
             arg_value = arg
         else:
-            arg_type = "label"
-            arg_value = arg
+            if (opcode in instructions_w_one_label or opcode in instructions_w_three_lss) and args == []:
+                arg_type = "label"
+                arg_value = arg
+            else:
+                sys.exit(23)
         args.append(Argument(arg_type, arg_value))
     return args
 
@@ -104,7 +151,7 @@ def get_instruction_from_line(line, line_number):
         instruction_args = parts_of_line[1]
     else:
         instruction_args = ""
-    args = parse_arg(instruction_args)
+    args = parse_arg(opcode, instruction_args)
     return Instruction(line_number, opcode, args)
 
 
@@ -118,29 +165,28 @@ def parse_instructions(instruction):
             print(f"Error: {instruction.opcode} takes one label", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_one_symb:
-        if len(instruction.args) != 1 or instruction.args[0].type not in arguments_type_list and \
+        if len(instruction.args) != 1 or instruction.args[0].type not in ["var", "string", "int", "bool", "nil"] and \
                 instruction.args[0].type not in argument_frames:
             print(f"Error: {instruction.opcode} takes one symbol", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_one_var:
-        if len(instruction.args) != 1 or instruction.args[0].type not in arguments_type_list:
+        if len(instruction.args) != 1 or instruction.args[0].type != "var":
             print(f"Error: {instruction.opcode} takes one variable", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_two_vs:
-        if len(instruction.args) != 2 or instruction.args[0].type not in arguments_type_list or \
+        if len(instruction.args) != 2 or instruction.args[0].type != "var" or \
                 instruction.args[1].type not in arguments_type_list:
             print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_two_vt:
-        if len(instruction.args) != 2 or instruction.args[0].type not in arguments_type_list or \
+        if len(instruction.args) != 2 or instruction.args[0].type != "var" or \
                 instruction.args[1].value not in ["int", "string", "bool"] and instruction.args[1].value != "":
             print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
             sys.exit(23)
     elif instruction.opcode in instructions_w_three_vss:
         if len(instruction.args) != 3 or \
-                instruction.args[0].type not in argument_frames or \
+                instruction.args[0].type != "var" or \
                 instruction.args[1].type not in arguments_type_list or \
-                instruction.args[1].type not in argument_frames or \
                 instruction.args[2].type not in arguments_type_list:
             print(f"Error: {instruction.opcode} takes three symbols", file=sys.stderr)
             sys.exit(23)
@@ -148,74 +194,68 @@ def parse_instructions(instruction):
         if len(instruction.args) != 3 or \
                 instruction.args[0].type != "label" or \
                 instruction.args[1].type not in arguments_type_list or \
-                instruction.args[2].type not in arguments_type_list or \
-                instruction.args[2].type not in argument_frames:
+                instruction.args[2].type not in arguments_type_list:
             print(f"Error: {instruction.opcode} takes three symbols", file=sys.stderr)
             sys.exit(23)
 
     match instruction.opcode:
         case "ADD", "SUB", "MUL", "IDIV":
-            if instruction.args[0].type not in argument_frames and \
+            if instruction.args[0].type != "var" and \
                     instruction.args[1].type != "int" and \
                     instruction.args[2].type != "int":
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "LT", "GT", "EQ", "JUMPIFEQ", "JUMPIFNEQ":
-            allowed_types = ["bool", "int", "string"]
+            allowed_types = ["bool", "int", "string", "var"]
             if instruction.opcode in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                 allowed_types.append("nil")
-            if (instruction.args[1].type in allowed_types or instruction.args[1].type in argument_frames) and \
-                    (instruction.args[2].type in allowed_types or instruction.args[2].type in argument_frames):
-                if (instruction.args[1].type in allowed_types and instruction.args[2].type in allowed_types) and \
-                        instruction.args[1].type != instruction.args[2].type:
-                    print("Error: invalid type of argument", file=sys.stderr)
-                    sys.exit(23)
-                else:
-                    return
-            else:
+            if instruction.args[0].type != "var" or instruction.args[1].type not in allowed_types or \
+                    instruction.args[2].type not in allowed_types:
+                print("Error: invalid type of argument", file=sys.stderr)
+                sys.exit(23)
+            if instruction.args[1].type != "var" and instruction.args[2].type != "var" and \
+                    instruction.args[1].type != instruction.args[2].type:
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "AND", "OR":
-            if (instruction.args[1].type != "bool" and instruction.args[2].type != "bool") or \
-                    (instruction.args[1].type not in argument_frames and instruction.args[
-                        2].type not in argument_frames):
+            if instruction.args[0].type != "var" or \
+                    instruction.args[1].type not in ["bool", "var"] or \
+                    instruction.args[2].type not in ["bool", "var"]:
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "NOT":
-            if instruction.args[1].type != "bool" and instruction.args[1].type not in argument_frames:
+            if instruction.args[1].type not in ["bool", "var"] or instruction.args[0].type != "var":
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "INT2CHAR":
-            if instruction.args[1].type not in argument_frames and instruction.args[1].type != "int":
+            if instruction.args[0].type != "var" or instruction.args[1].type not in ["int", "var"]:
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "STRI2INT", "GETCHAR":
-            if not (instruction.args[1].type == "string" or instruction.args[1].type in argument_frames):
-                print("Error: The first argument must be either of type string or a variable", file=sys.stderr)
-                sys.exit(23)
-            if not (instruction.args[2].type == "int" or instruction.args[2].type in argument_frames):
-                print("Error: The second argument must be either of type int or a variable", file=sys.stderr)
+            if instruction.args[0].type != "var" or instruction.args[1].type not in ["string", "var"]:
+                print("Error: first argument must be var and second argument must be string or var", file=sys.stderr)
                 sys.exit(23)
         case "CONCAT":
-            if not (instruction.args[1].type == "string" or instruction.args[1].type in argument_frames):
-                print("Error: The first argument must be either of type string or a variable", file=sys.stderr)
+            if instruction.args[0].type != "var":
+                print("Error: first argument must be of type var", file=sys.stderr)
                 sys.exit(23)
-            if not (instruction.args[2].type == "string" or instruction.args[2].type in argument_frames):
-                print("Error: The second argument must be either of type string or a variable", file=sys.stderr)
+            if instruction.args[1].type not in ["string", "var"]:
+                print("Error: second argument must be either of type string or a variable", file=sys.stderr)
+                sys.exit(23)
+            if instruction.args[2].type not in ["string", "var"]:
+                print("Error: third argument must be either of type string or a variable", file=sys.stderr)
                 sys.exit(23)
         case "STRLEN":
-            if instruction.args[1].type not in argument_frames and instruction.args[1].type != "string":
+            if instruction.args[0].type != "var" or instruction.args[1].type not in ["string", "var"]:
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "SETCHAR":
-            if not (instruction.args[2].type == "string" or instruction.args[2].type in argument_frames):
-                print("Error: The second argument must be either of type string or a variable", file=sys.stderr)
-                sys.exit(23)
-            if not (instruction.args[1].type == "int" or instruction.args[1].type in argument_frames):
-                print("Error: The first argument must be either of type int or a variable", file=sys.stderr)
+            if instruction.args[0].type != "var" or instruction.args[1].type not in ["int", "var"] or \
+                    instruction.args[2].type not in ["string", "var"]:
+                print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
         case "DPRINT":
-            if instruction.args[0].type not in arguments_type_list and instruction.args[0].type not in argument_frames:
+            if instruction.args[0].type not in arguments_type_list:
                 print("Error: invalid type of argument", file=sys.stderr)
                 sys.exit(23)
 
