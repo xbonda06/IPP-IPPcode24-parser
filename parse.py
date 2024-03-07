@@ -27,28 +27,39 @@ def contains_uppercase(s):
     return any(c.isupper() for c in s)
 
 
-class ArgumentCheck:
-    def __init__(self, expected_args=None):
-        self.expected_args = expected_args or []
+class InputChecker:
+    def __init__(self, allowed_args=None):
+        self.allowed_args = allowed_args or []
 
     def check_args(self):
-        if len(sys.argv) > 1 and sys.argv[1] not in self.expected_args:
-            print("Invalid number of arguments", file=sys.stderr)
-            sys.exit(10)
-        elif len(sys.argv) == 2 and sys.argv[1] in self.expected_args:
-            print("HINT:")
-            print("This script reads the source code in IPPcode24 from stdin.")
-            print("It creates an XML file from it, which it prints to stdout.\n")
-            print("Optional parameters:")
-            print("--help - prints this help message\n")
-            sys.exit(0)
+        if len(sys.argv) > 1:
+            if sys.argv[1] == '--help':
+                self.display_help()
+            elif sys.argv[1] not in self.allowed_args:
+                self.error_exit("Invalid number of arguments", 10)
+
+    @staticmethod
+    def display_help():
+        help_message = """
+        This script reads the source code in IPPcode24 from stdin.
+        It creates an XML file from it, which it prints to stdout.
+
+        Optional parameters:
+        --help - prints this help message
+        """
+        print(help_message)
+        sys.exit(0)
+
+    @staticmethod
+    def error_exit(message, code):
+        print(message, file=sys.stderr)
+        sys.exit(code)
 
 
 class Instruction:
     def __init__(self, order, opcode, args):
         if opcode not in instructions_list:
-            print(f"Error: unknown instruction {opcode}", file=sys.stderr)
-            sys.exit(22)
+            InputChecker.error_exit(f"Error: unknown instruction {opcode}", 22)
         self.order = order
         self.opcode = opcode
         self.args = args
@@ -56,40 +67,32 @@ class Instruction:
 
 def check_arg_type(arg_type, arg_value):
     if contains_uppercase(arg_type) and arg_type not in argument_frames:
-        print("Error: invalid argument type", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid argument type", 23)
     if arg_type == "bool" and arg_value not in ["true", "false"]:
-        print("Error: invalid value of argument", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid value of argument", 23)
     if arg_type == "nil" and arg_value != "nil":
-        print("Error: invalid value of argument", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid value of argument", 23)
 
 
 def parse_string(string):
     pattern = r'\\(?!([0-9]{3}))'
     if re.search(pattern, string):
-        print("Error: invalid escape sequence", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid value of argument", 23)
 
 
 def check_arg_value(arg_type, arg_value):
     special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
     if arg_type == "int" and len(arg_value) == 0:
-        print("Error: invalid value of argument", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid value of argument", 23)
     if arg_type == "int" and \
             (not arg_value.isdigit() and not arg_value[0] in ["+", "-"] and not arg_value[1:].isdigit()):
-        print("Error: invalid value of argument", file=sys.stderr)
-        sys.exit(23)
+        InputChecker.error_exit("Error: invalid value of argument", 23)
     if arg_type in ["label", "var"]:
         if not arg_value[0].isalpha() and arg_value[0] not in special_chars:
-            print("Error: invalid value of argument", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit("Error: invalid value of argument", 23)
         for char in arg_value:
             if not char.isalnum() and char not in special_chars:
-                print("Error: invalid value of argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit("Error: invalid value of argument", 23)
     if arg_type == "string":
         parse_string(arg_value)
 
@@ -131,11 +134,11 @@ class XMLGenerator:
 
 def parse_arg(opcode, instruction_args):
     args = []
+    arg_type, arg_value = "", ""
     for arg in instruction_args.split():
         if '@' in arg:
             if arg.count("@") > 1:
-                print("Error: invalid argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit("Error: invalid argument", 23)
             arg_type, arg_value = arg.split('@', 1)
         elif arg in arguments_type_list and opcode in instructions_w_two_vt:
             arg_type = "type"
@@ -145,7 +148,7 @@ def parse_arg(opcode, instruction_args):
                 arg_type = "label"
                 arg_value = arg
             else:
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid argument", 23)
         args.append(Argument(arg_type, arg_value))
     return args
 
@@ -168,111 +171,81 @@ def get_instruction_from_line(line, line_number):
 def parse_instructions(instruction):
     if instruction.opcode in instructions_w_no_args:
         if len(instruction.args) != 0:
-            print(f"Error: {instruction.opcode} takes no arguments", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes no arguments", 23)
     elif instruction.opcode in instructions_w_one_label:
         if len(instruction.args) != 1 or instruction.args[0].type != "label":
-            print(f"Error: {instruction.opcode} takes one label", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes one label", 23)
     elif instruction.opcode in instructions_w_one_symb:
-        if len(instruction.args) != 1 or instruction.args[0].type not in ["var", "string", "int", "bool", "nil"] and \
-                instruction.args[0].type not in argument_frames:
-            print(f"Error: {instruction.opcode} takes one symbol", file=sys.stderr)
-            sys.exit(23)
+        if len(instruction.args) != 1 or instruction.args[0].type not in ["var", "string", "int", "bool", "nil"]:
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes one symbol", 23)
     elif instruction.opcode in instructions_w_one_var:
         if len(instruction.args) != 1 or instruction.args[0].type != "var":
-            print(f"Error: {instruction.opcode} takes one variable", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes one variable", 23)
     elif instruction.opcode in instructions_w_two_vs:
         if len(instruction.args) != 2 or instruction.args[0].type != "var" or \
                 instruction.args[1].type not in arguments_type_list:
-            print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes two symbols", 23)
     elif instruction.opcode in instructions_w_two_vt:
         if len(instruction.args) != 2 or instruction.args[0].type != "var" or \
-                instruction.args[1].value not in ["int", "string", "bool"] and instruction.args[1].value != "":
-            print(f"Error: {instruction.opcode} takes two variables", file=sys.stderr)
-            sys.exit(23)
+                instruction.args[1].value not in ["int", "string", "bool"]:
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes two symbols", 23)
     elif instruction.opcode in instructions_w_three_vss:
         if len(instruction.args) != 3 or \
                 instruction.args[0].type != "var" or \
                 instruction.args[1].type not in arguments_type_list or \
                 instruction.args[2].type not in arguments_type_list:
-            print(f"Error: {instruction.opcode} takes three symbols", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes three symbols", 23)
     elif instruction.opcode in instructions_w_three_lss:
         if len(instruction.args) != 3 or \
                 instruction.args[0].type != "label" or \
                 instruction.args[1].type not in arguments_type_list or \
                 instruction.args[2].type not in arguments_type_list:
-            print(f"Error: {instruction.opcode} takes three symbols", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit(f"Error: {instruction.opcode} takes three symbols", 23)
 
     match instruction.opcode:
         case "ADD", "SUB", "MUL", "IDIV":
-            if instruction.args[0].type != "var" and \
-                    instruction.args[1].type != "int" and \
-                    instruction.args[2].type != "int":
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+            if instruction.args[1].type != "int" and instruction.args[2].type != "int":
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "LT", "GT", "EQ", "JUMPIFEQ", "JUMPIFNEQ":
             allowed_types = ["bool", "int", "string", "var"]
             if instruction.opcode in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                 allowed_types.append("nil")
-            if instruction.args[0].type != "var" or instruction.args[1].type not in allowed_types or \
-                    instruction.args[2].type not in allowed_types:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+            if instruction.args[1].type not in allowed_types or instruction.args[2].type not in allowed_types:
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
             if instruction.args[1].type != "var" and instruction.args[2].type != "var" and \
                     instruction.args[1].type != instruction.args[2].type:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "AND", "OR":
-            if instruction.args[0].type != "var" or \
-                    instruction.args[1].type not in ["bool", "var"] or \
-                    instruction.args[2].type not in ["bool", "var"]:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+            if instruction.args[1].type not in ["bool", "var"] or instruction.args[2].type not in ["bool", "var"]:
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "NOT":
             if instruction.args[1].type not in ["bool", "var"] or instruction.args[0].type != "var":
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "INT2CHAR":
-            if instruction.args[0].type != "var" or instruction.args[1].type not in ["int", "var"]:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+            if instruction.args[1].type not in ["int", "var"]:
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "STRI2INT", "GETCHAR":
-            if instruction.args[0].type != "var" or instruction.args[1].type not in ["string", "var"]:
-                print("Error: first argument must be var and second argument must be string or var", file=sys.stderr)
-                sys.exit(23)
-        case "CONCAT":
-            if instruction.args[0].type != "var":
-                print("Error: first argument must be of type var", file=sys.stderr)
-                sys.exit(23)
             if instruction.args[1].type not in ["string", "var"]:
-                print("Error: second argument must be either of type string or a variable", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
+        case "CONCAT":
+            if instruction.args[1].type not in ["string", "var"]:
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
             if instruction.args[2].type not in ["string", "var"]:
-                print("Error: third argument must be either of type string or a variable", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "STRLEN":
-            if instruction.args[0].type != "var" or instruction.args[1].type not in ["string", "var"]:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+            if instruction.args[1].type not in ["string", "var"]:
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "SETCHAR":
-            if instruction.args[0].type != "var" or instruction.args[1].type not in ["int", "var"] or \
+            if instruction.args[1].type not in ["int", "var"] or \
                     instruction.args[2].type not in ["string", "var"]:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
         case "DPRINT":
             if instruction.args[0].type not in arguments_type_list:
-                print("Error: invalid type of argument", file=sys.stderr)
-                sys.exit(23)
+                InputChecker.error_exit(f"Error: invalid type of argument", 23)
 
 
 def main():
-    arg_checker = ArgumentCheck(["parse.py", "--help"])
-    arg_checker.check_args()
+    InputChecker(["--help"]).check_args()
 
     xml_gen = XMLGenerator()
 
@@ -280,21 +253,18 @@ def main():
     header_checked = False
     for line in sys.stdin:
         if line.strip().startswith(".IPPcode24") and header_checked:
-            print("Error: multiple headers found", file=sys.stderr)
-            sys.exit(23)
+            InputChecker.error_exit("Error: header found twice", 23)
         elif line.strip().startswith(".IPPcode24") and not header_checked:
             line_parts = line.split()
             line_without_comments = line_parts[0].split("#")
             if line_without_comments[0] != ".IPPcode24":
-                print("Error: wrong header format", file=sys.stderr)
-                sys.exit(21)
+                InputChecker.error_exit("Error: invalid header", 21)
             header_checked = True
             continue
         elif line.strip().startswith("#") or line.strip() == "":
             continue
         if not header_checked:
-            print("Error: header not found", file=sys.stderr)
-            sys.exit(21)
+            InputChecker.error_exit("Error: header not found", 21)
 
         line_number += 1
         instruction = get_instruction_from_line(line, line_number)
