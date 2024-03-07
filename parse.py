@@ -65,50 +65,50 @@ class Instruction:
         self.args = args
 
 
-def check_arg_type(arg_type, arg_value):
-    if contains_uppercase(arg_type) and arg_type not in argument_frames:
-        InputChecker.error_exit("Error: invalid argument type", 23)
-    if arg_type == "bool" and arg_value not in ["true", "false"]:
-        InputChecker.error_exit("Error: invalid value of argument", 23)
-    if arg_type == "nil" and arg_value != "nil":
-        InputChecker.error_exit("Error: invalid value of argument", 23)
-
-
-def parse_string(string):
-    pattern = r'\\(?!([0-9]{3}))'
-    if re.search(pattern, string):
-        InputChecker.error_exit("Error: invalid value of argument", 23)
-
-
-def check_arg_value(arg_type, arg_value):
-    special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
-    if arg_type == "int" and len(arg_value) == 0:
-        InputChecker.error_exit("Error: invalid value of argument", 23)
-    if arg_type == "int" and \
-            (not arg_value.isdigit() and not arg_value[0] in ["+", "-"] and not arg_value[1:].isdigit()):
-        InputChecker.error_exit("Error: invalid value of argument", 23)
-    if arg_type in ["label", "var"]:
-        if not arg_value[0].isalpha() and arg_value[0] not in special_chars:
-            InputChecker.error_exit("Error: invalid value of argument", 23)
-        for char in arg_value:
-            if not char.isalnum() and char not in special_chars:
-                InputChecker.error_exit("Error: invalid value of argument", 23)
-    if arg_type == "string":
-        parse_string(arg_value)
-
-
 class Argument:
     def __init__(self, arg_type, arg_value):
-        check_arg_type(arg_type, arg_value)
+        self.check_arg_type(arg_type, arg_value)
         self.type = arg_type if arg_type in arguments_type_list else "var"
-        check_arg_value(self.type, arg_value)
-        arg_value.replace("<", "&lt;")
-        arg_value.replace(">", "&gt;")
-        arg_value.replace("&", "&amp;")
+        self.check_arg_value(self, self.type, arg_value)
         if arg_type in argument_frames:
             self.value = f"{arg_type}@{arg_value}"
         else:
             self.value = arg_value
+
+    @staticmethod
+    def check_arg_type(arg_type, arg_value):
+        if contains_uppercase(arg_type) and arg_type not in argument_frames:
+            InputChecker.error_exit("Error: invalid argument type", 23)
+        if arg_type == "bool" and arg_value not in ["true", "false"]:
+            InputChecker.error_exit("Error: invalid value of argument", 23)
+        if arg_type == "nil" and arg_value != "nil":
+            InputChecker.error_exit("Error: invalid value of argument", 23)
+
+    @staticmethod
+    def parse_string(string):
+        pattern = r'\\(?!([0-9]{3}))'
+        if re.search(pattern, string):
+            InputChecker.error_exit("Error: invalid value of argument", 23)
+
+    @staticmethod
+    def check_arg_value(self, arg_type, arg_value):
+        special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
+        if arg_type == "int" and len(arg_value) == 0:
+            InputChecker.error_exit("Error: invalid value of argument", 23)
+        if arg_type == "int" and \
+                (not arg_value.isdigit() and not arg_value[0] in ["+", "-"] and not arg_value[1:].isdigit()):
+            InputChecker.error_exit("Error: invalid value of argument", 23)
+        if arg_type in ["label", "var"]:
+            if not arg_value[0].isalpha() and arg_value[0] not in special_chars:
+                InputChecker.error_exit("Error: invalid value of argument", 23)
+            for char in arg_value:
+                if not char.isalnum() and char not in special_chars:
+                    InputChecker.error_exit("Error: invalid value of argument", 23)
+        if arg_type == "string":
+            self.parse_string(arg_value)
+            arg_value.replace("<", "&lt;")
+            arg_value.replace(">", "&gt;")
+            arg_value.replace("&", "&amp;")
 
 
 class XMLGenerator:
