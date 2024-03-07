@@ -1,3 +1,4 @@
+import re
 import sys
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -65,6 +66,13 @@ def check_arg_type(arg_type, arg_value):
         sys.exit(23)
 
 
+def parse_string(string):
+    pattern = r'\\(?!([0-9]{3}))'
+    if re.search(pattern, string):
+        print("Error: invalid escape sequence", file=sys.stderr)
+        sys.exit(23)
+
+
 def check_arg_value(arg_type, arg_value):
     special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
     if arg_type == "int" and len(arg_value) == 0:
@@ -82,6 +90,8 @@ def check_arg_value(arg_type, arg_value):
             if not char.isalnum() and char not in special_chars:
                 print("Error: invalid value of argument", file=sys.stderr)
                 sys.exit(23)
+    if arg_type == "string":
+        parse_string(arg_value)
 
 
 class Argument:
@@ -273,6 +283,11 @@ def main():
             print("Error: multiple headers found", file=sys.stderr)
             sys.exit(23)
         elif line.strip().startswith(".IPPcode24") and not header_checked:
+            line_parts = line.split()
+            line_without_comments = line_parts[0].split("#")
+            if line_without_comments[0] != ".IPPcode24":
+                print("Error: wrong header format", file=sys.stderr)
+                sys.exit(21)
             header_checked = True
             continue
         elif line.strip().startswith("#") or line.strip() == "":
