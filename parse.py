@@ -13,11 +13,11 @@ instructions_w_no_args = ["CREATEFRAME", "PUSHFRAME", "POPFRAME", "RETURN", "BRE
 instructions_w_one_label = ["CALL", "LABEL", "JUMP"]
 instructions_w_one_symb = ["PUSHS", "WRITE", "DPRINT", "EXIT"]
 instructions_w_one_var = ["DEFVAR", "POPS"]
-instructions_w_two_vs = ["MOVE", "INT2CHAR", "STRLEN", "TYPE", "NOT"] # var symb
-instructions_w_two_vt = ["READ"] # var type
+instructions_w_two_vs = ["MOVE", "INT2CHAR", "STRLEN", "TYPE", "NOT"]  # var symb
+instructions_w_two_vt = ["READ"]  # var type
 instructions_w_three_vss = ["ADD", "SUB", "MUL", "IDIV", "LT", "GT", "EQ", "AND", "OR",
-                            "STRI2INT", "CONCAT", "GETCHAR", "SETCHAR"] # var symb symb
-instructions_w_three_lss = ["JUMPIFEQ", "JUMPIFNEQ"] # label symb symb
+                            "STRI2INT", "CONCAT", "GETCHAR", "SETCHAR"]  # var symb symb
+instructions_w_three_lss = ["JUMPIFEQ", "JUMPIFNEQ"]  # label symb symb
 
 arguments_type_list = ["int", "bool", "string", "nil", "label", "type", "var"]
 argument_frames = ["GF", "LF", "TF"]
