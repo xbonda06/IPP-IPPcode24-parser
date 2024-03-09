@@ -73,7 +73,7 @@ class Argument:
         self.process_type(arg_type, arg_value)
         self.process_value(self.type, arg_value)
         if arg_type in argument_frames:
-            self.value = f"{arg_type}@{arg_value}" # add frame to value GF@var
+            self.value = f"{arg_type}@{arg_value}"  # add frame to value GF@var
         else:
             self.value = arg_value
 
@@ -88,15 +88,17 @@ class Argument:
             ProgramIOController.error_exit("Error: invalid value of argument", 23)
 
     @staticmethod
-    def parse_string(string):
-        pattern = r'\\(?!([0-9]{3}))'
+    def parse_string_on_esc_seq(string):
+        pattern = r'\\(?!([0-9]{3}))'  # check if every escape sequence contains 3 digits
         if re.search(pattern, string):
             ProgramIOController.error_exit("Error: invalid value of argument", 23)
 
     def process_value(self, arg_type, arg_value):
-        special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]
+        special_chars = ["_", "-", "$", "&", "%", "*", "!", "?"]  # allowed special characters in identifiers
+        # integer value cannot be empty
         if arg_type == "int" and len(arg_value) == 0:
             ProgramIOController.error_exit("Error: invalid value of argument", 23)
+        # integer value contains only digits and can start with + or -
         if arg_type == "int" and \
                 (not arg_value.isdigit() and not arg_value[0] in ["+", "-"] and not arg_value[1:].isdigit()):
             ProgramIOController.error_exit("Error: invalid value of argument", 23)
@@ -107,7 +109,7 @@ class Argument:
                 if not char.isalnum() and char not in special_chars:
                     ProgramIOController.error_exit("Error: invalid value of argument", 23)
         if arg_type == "string":
-            self.parse_string(arg_value)
+            self.parse_string_on_esc_seq(arg_value)
             arg_value.replace("<", "&lt;")
             arg_value.replace(">", "&gt;")
             arg_value.replace("&", "&amp;")
