@@ -164,8 +164,8 @@ class InstructionValidator:
                 allowed_types = ["bool", "int", "string", "var"]
                 if self.instruction.opcode in ["EQ", "JUMPIFEQ", "JUMPIFNEQ"]:
                     allowed_types.append("nil")
-                if self.instruction.args[1].type not in allowed_types or self.instruction.args[
-                    2].type not in allowed_types:
+                if self.instruction.args[1].type not in allowed_types or \
+                        self.instruction.args[2].type not in allowed_types:
                     ProgramIOController.error_exit(f"Error: invalid type of argument", 23)
                 if self.instruction.args[1].type != "var" and self.instruction.args[2].type != "var" and \
                         self.instruction.args[1].type != self.instruction.args[2].type:
